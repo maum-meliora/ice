@@ -33,7 +33,14 @@ if ($Count -le 0) {
 
 Write-Host ""
 Write-Host "=== Repeated real tests: previously flaky trio, -count=$Count ==="
+# -race on Windows needs a C toolchain (gcc); fall back to a plain run without one.
+$raceFlag = @()
+if (Get-Command gcc -ErrorAction SilentlyContinue) {
+    $raceFlag = @("-race")
+} else {
+    Write-Host "gcc not found; running without -race (fine for the port-bind check)"
+}
 Push-Location (Join-Path $PSScriptRoot "..")
-go test -race -count=$Count -timeout 60m `
+go test @raceFlag -count=$Count -timeout 60m `
     -run 'TestMultiTCPMuxUsage|TestTURNConcurrency|TestMultiUDPMuxUsage' .
 Pop-Location
