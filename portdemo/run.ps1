@@ -41,6 +41,6 @@ if (Get-Command gcc -ErrorAction SilentlyContinue) {
     Write-Host "gcc not found; running without -race (fine for the port-bind check)"
 }
 Push-Location (Join-Path $PSScriptRoot "..")
-go test @raceFlag -count=$Count -timeout 60m `
+go test @raceFlag "-count=$Count" -timeout 60m `
     -run 'TestMultiTCPMuxUsage|TestTURNConcurrency|TestMultiUDPMuxUsage' .
 Pop-Location
