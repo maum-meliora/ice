@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
+# SPDX-License-Identifier: MIT
+#
 # Windows repeated-test runner for the port allocation fix.
 #
 # Usage (PowerShell, from the repo's portdemo folder):
