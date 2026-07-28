@@ -3,9 +3,10 @@
 #
 # One-shot before/after demo for the port allocation fix.
 #
-# Positions the Windows UDP ephemeral-port cursor at the edge of a TCP
-# excluded range, then runs TestMultiTCPMuxUsage on the pre-fix commit
-# (expected: FAIL) and on the fixed code (expected: ok).
+# Occupies TCP ports just ahead of the UDP ephemeral-port cursor (UDP side
+# left free), then runs TestMultiTCPMuxUsage on the pre-fix commit
+# (expected: FAIL - its UDP-picked port is TCP-busy) and on the fixed code
+# (expected: ok - bind :0 skips busy ports).
 #
 # Usage: powershell -ExecutionPolicy Bypass -File .\portdemo\ab.ps1
 
@@ -25,21 +26,24 @@ if (-not (Test-Path $beforeDir)) {
 
 function Invoke-DemoStep([string]$Label, [string]$Dir) {
     Write-Host ""
-    Write-Host "--- $Label / cursor walk ---"
-    # Out-Host keeps command output on screen instead of it becoming the
-    # function return value (PowerShell functions return all pipeline output).
-    go run (Join-Path $repoRoot "portdemo\walk") 2>&1 | Out-Host
-    if ($LASTEXITCODE -ne 0) { return $null }
+    Write-Host "--- $Label / occupying TCP ports ahead of the UDP cursor ---"
+    $occupier = Start-Process go -ArgumentList "run", (Join-Path $repoRoot "portdemo\occupy") `
+        -NoNewWindow -PassThru
+    # Give `go run` time to compile and reach READY (it prints to this console).
+    Start-Sleep -Seconds 6
     Write-Host "--- $Label / TestMultiTCPMuxUsage ---"
     Push-Location $Dir
+    # Out-Host keeps command output on screen instead of it becoming the
+    # function return value (PowerShell functions return all pipeline output).
     go test "-count=1" -timeout 5m -run TestMultiTCPMuxUsage . 2>&1 | Out-Host
     $code = $LASTEXITCODE
     Pop-Location
+    Stop-Process -Id $occupier.Id -Force -ErrorAction SilentlyContinue
     return $code
 }
 
-# The cursor can drift if another app binds UDP between walk and test,
-# letting the old code slip past the range — retry the pair a few times.
+# Retry a few times in case heavy background UDP traffic moves the cursor
+# out of the occupied window between occupation and the test's port picks.
 $beforeCode = $null
 for ($i = 1; $i -le $MaxAttempts; $i++) {
     $beforeCode = Invoke-DemoStep "BEFORE old code, attempt $i" $beforeDir
