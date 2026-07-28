@@ -26,11 +26,13 @@ if (-not (Test-Path $beforeDir)) {
 function Invoke-DemoStep([string]$Label, [string]$Dir) {
     Write-Host ""
     Write-Host "--- $Label / cursor walk ---"
-    go run (Join-Path $repoRoot "portdemo\walk")
+    # Out-Host keeps command output on screen instead of it becoming the
+    # function return value (PowerShell functions return all pipeline output).
+    go run (Join-Path $repoRoot "portdemo\walk") 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { return $null }
     Write-Host "--- $Label / TestMultiTCPMuxUsage ---"
     Push-Location $Dir
-    go test "-count=1" -timeout 5m -run TestMultiTCPMuxUsage .
+    go test "-count=1" -timeout 5m -run TestMultiTCPMuxUsage . 2>&1 | Out-Host
     $code = $LASTEXITCODE
     Pop-Location
     return $code
