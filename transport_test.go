@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -652,6 +653,7 @@ func TestUDPConnReadWriteDoesNotAllocate(t *testing.T) {
 		roundTrip()
 	}
 	require.NoError(t, failure)
+	waitUntilAllocationsAreQuiet(t)
 
 	allocs := testing.AllocsPerRun(1000, roundTrip)
 	require.NoError(t, failure)
@@ -788,5 +790,31 @@ func BenchmarkUDPConnWriteRead(b *testing.B) {
 		if _, err := cb.Read(readBuf); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// waitUntilAllocationsAreQuiet blocks until the process stops allocating.
+// testing.AllocsPerRun counts allocations process-wide, so an ICE session's
+// own STUN traffic would otherwise be charged to whatever is measured next.
+func waitUntilAllocationsAreQuiet(tb testing.TB) {
+	tb.Helper()
+	mallocs := func() uint64 {
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+
+		return stats.Mallocs
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	last := mallocs()
+	for quietFor := time.Duration(0); quietFor < 300*time.Millisecond; {
+		require.False(tb, time.Now().After(deadline), "the process never stopped allocating")
+		time.Sleep(50 * time.Millisecond)
+		if current := mallocs(); current != last {
+			last, quietFor = current, 0
+
+			continue
+		}
+		quietFor += 50 * time.Millisecond
 	}
 }
