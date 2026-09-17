@@ -122,23 +122,33 @@ func TestBindingRequestHandler(t *testing.T) {
 	require.True(t, sendUntilDone(t, controlledConn, controllingConn, 100))
 
 	// Take the lock on the controlling Agent and unset state
+	var closeErrs []error
+	var notHost int
 	assert.NoError(t, controlledAgent.loop.Run(controlledAgent.loop, func(_ context.Context) {
 		for net, cs := range controlledAgent.remoteCandidates {
 			for _, c := range cs {
-				require.NoError(t, c.close())
+				if closeErr := c.close(); closeErr != nil {
+					closeErrs = append(closeErrs, closeErr)
+				}
 			}
 			delete(controlledAgent.remoteCandidates, net)
 		}
 
 		for _, c := range controlledAgent.localCandidates[NetworkTypeUDP4] {
 			cast, ok := c.(*CandidateHost)
-			require.True(t, ok)
+			if !ok {
+				notHost++
+
+				continue
+			}
 			cast.remoteCandidateCaches = sync.Map{}
 		}
 
 		controlledAgent.setSelectedPair(nil)
 		controlledAgent.checklist = make([]*CandidatePair, 0)
 	}))
+	require.Empty(t, closeErrs)
+	require.Zero(t, notHost)
 
 	// Assert that Selected Candidate pair has only been unset on Controlled side
 	candidatePair, err := controlledAgent.GetSelectedCandidatePair()
@@ -1729,13 +1739,13 @@ func TestLiteMode_FullToLite_Integration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var selectedPairID uint64
+	var selectedPair *CandidatePair
 	err = liteAgent.loop.Run(liteAgent.loop, func(_ context.Context) {
-		selectedPair := liteAgent.getSelectedPair()
-		require.NotNil(t, selectedPair)
-		selectedPairID = selectedPair.id
+		selectedPair = liteAgent.getSelectedPair()
 	})
 	require.NoError(t, err)
+	require.NotNil(t, selectedPair)
+	selectedPairID := selectedPair.id
 
 	var foundSelectedPair bool
 	for _, info := range liteConn.GetCandidatePairsInfo() {

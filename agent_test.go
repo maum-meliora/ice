@@ -22,6 +22,7 @@ import (
 	"github.com/pion/stun/v4"
 	"github.com/pion/transport/v5/test"
 	"github.com/pion/transport/v5/vnet"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -592,7 +593,7 @@ func TestAgentCloseClearsSharedUDPMuxAbortDeadlineForOtherAgent(t *testing.T) { 
 	}
 }
 
-func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
+func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,gocyclo,maintidx
 	defer test.CheckRoutines(t)()
 
 	// Limit runtime in case of deadlocks
@@ -612,28 +613,34 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			hostConfig := CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1}
 			local, err := NewCandidateHost(&hostConfig)
 			local.conn = &fakenet.MockPacketConn{}
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(local.Priority()), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
 
 			// Length of remote candidate list must be one now
-			require.Len(t, agent.remoteCandidates, 1)
+			assert.Len(t, agent.remoteCandidates, 1)
 
 			// Length of remote candidate list for a network type must be 1
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
+			if !assert.Len(t, set, 1) {
+				return
+			}
 
 			c := set[0]
 
-			require.Equal(t, CandidateTypePeerReflexive, c.Type())
-			require.Equal(t, "172.17.0.3", c.Address())
-			require.Equal(t, 999, c.Port())
+			assert.Equal(t, CandidateTypePeerReflexive, c.Type())
+			assert.Equal(t, "172.17.0.3", c.Address())
+			assert.Equal(t, 999, c.Port())
 		}))
 	})
 
@@ -649,20 +656,28 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.selector = sel
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 
 			remoteMDNS, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "1f4712db-ea17-4bcf-a596-105139dfd8bf.local", Port: 999, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			// Resolve and register the candidate with the same calls
 			// resolveAndAddMulticastCandidate makes after its mDNS query
 			// returns; only the query itself is skipped here.
-			require.NoError(t, remoteMDNS.setIPAddr(netip.MustParseAddr("172.17.0.3")))
+			assert.NoError(t, remoteMDNS.setIPAddr(netip.MustParseAddr("172.17.0.3")))
 			// nolint: contextcheck
-			require.True(t, agent.addRemoteCandidate(remoteMDNS))
+			if !assert.True(t, agent.addRemoteCandidate(remoteMDNS)) {
+				return
+			}
 
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(local.Priority()), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, netip.MustParseAddrPort("172.17.0.3:999"))
@@ -675,9 +690,11 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			//  - https://datatracker.ietf.org/doc/html/rfc8445#section-4
 			//  - (expired draft) https://datatracker.ietf.org/doc/html/draft-ietf-mmusic-mdns-ice-candidates-03#section-3.2.1
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
-			require.Same(t, Candidate(remoteMDNS), set[0])
-			require.Equal(t, "1f4712db-ea17-4bcf-a596-105139dfd8bf.local", set[0].Address())
+			if !assert.Len(t, set, 1) {
+				return
+			}
+			assert.Same(t, Candidate(remoteMDNS), set[0])
+			assert.Equal(t, "1f4712db-ea17-4bcf-a596-105139dfd8bf.local", set[0].Address())
 		}))
 	})
 
@@ -693,24 +710,30 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.selector = sel
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 			remotePriority := uint32(123456)
 
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(remotePriority), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
 
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
+			if !assert.Len(t, set, 1) {
+				return
+			}
 
 			c := set[0]
-			require.Equal(t, CandidateTypePeerReflexive, c.Type())
-			require.Equal(t, remotePriority, c.Priority())
+			assert.Equal(t, CandidateTypePeerReflexive, c.Type())
+			assert.Equal(t, remotePriority, c.Priority())
 		}))
 	})
 
@@ -726,24 +749,32 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.selector = sel
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 			agent.localCandidates[local.NetworkType()] = []Candidate{local}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(uint32(99999)), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
 
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
+			if !assert.Len(t, set, 1) {
+				return
+			}
 			prflx := set[0]
-			require.Equal(t, CandidateTypePeerReflexive, prflx.Type())
-			require.Len(t, agent.checklist, 1)
+			assert.Equal(t, CandidateTypePeerReflexive, prflx.Type())
+			if !assert.Len(t, agent.checklist, 1) {
+				return
+			}
 			pair := agent.checklist[0]
-			require.Equal(t, prflx, pair.Remote)
+			assert.Equal(t, prflx, pair.Remote)
 
 			local.addRemoteCandidateCache(prflx, remote)
 			prflx.seen(false)
@@ -755,29 +786,37 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			sel.nominatedPair = pair
 
 			host, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "172.17.0.3", Port: 999, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			agent.addRemoteCandidate(host) // nolint:contextcheck
 
 			set = agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
-			require.Equal(t, CandidateTypeHost, set[0].Type())
-			require.Equal(t, host, set[0])
+			if !assert.Len(t, set, 1) {
+				return
+			}
+			assert.Equal(t, CandidateTypeHost, set[0].Type())
+			assert.Equal(t, host, set[0])
 
 			updatedPair := agent.findPair(local, host)
-			require.NotNil(t, updatedPair)
-			require.NotSame(t, pair, updatedPair)
-			require.Equal(t, host, updatedPair.Remote)
-			require.Equal(t, oldPriority, updatedPair.priority())
-			require.False(t, updatedPair.Remote.LastReceived().IsZero())
-			require.WithinDuration(t, oldLastReceived, updatedPair.Remote.LastReceived(), 10*time.Millisecond)
-			require.False(t, updatedPair.Remote.LastSent().IsZero())
-			require.WithinDuration(t, oldLastSent, updatedPair.Remote.LastSent(), 10*time.Millisecond)
-			require.Equal(t, prflx, pair.Remote)
-			require.Same(t, updatedPair, agent.getSelectedPair())
-			require.Same(t, updatedPair, sel.nominatedPair)
+			if !assert.NotNil(t, updatedPair) {
+				return
+			}
+			assert.NotSame(t, pair, updatedPair)
+			assert.Equal(t, host, updatedPair.Remote)
+			assert.Equal(t, oldPriority, updatedPair.priority())
+			assert.False(t, updatedPair.Remote.LastReceived().IsZero())
+			assert.WithinDuration(t, oldLastReceived, updatedPair.Remote.LastReceived(), 10*time.Millisecond)
+			assert.False(t, updatedPair.Remote.LastSent().IsZero())
+			assert.WithinDuration(t, oldLastSent, updatedPair.Remote.LastSent(), 10*time.Millisecond)
+			assert.Equal(t, prflx, pair.Remote)
+			assert.Same(t, updatedPair, agent.getSelectedPair())
+			assert.Same(t, updatedPair, sel.nominatedPair)
 			cached, ok := local.remoteCandidateCaches.Load(toAddrPortKey(remote))
-			require.True(t, ok)
-			require.Equal(t, host, cached)
+			if !assert.True(t, ok) {
+				return
+			}
+			assert.Equal(t, host, cached)
 		}))
 	})
 
@@ -792,46 +831,62 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.selector = &controllingSelector{agent: agent, log: agent.log}
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 			agent.localCandidates[local.NetworkType()] = []Candidate{local}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(uint32(99999)), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
 
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
+			if !assert.Len(t, set, 1) {
+				return
+			}
 			prflx := set[0]
-			require.Equal(t, CandidateTypePeerReflexive, prflx.Type())
-			require.Len(t, agent.checklist, 1)
+			assert.Equal(t, CandidateTypePeerReflexive, prflx.Type())
+			if !assert.Len(t, agent.checklist, 1) {
+				return
+			}
 			pair := agent.checklist[0]
-			require.Equal(t, prflx, pair.Remote)
+			assert.Equal(t, prflx, pair.Remote)
 
 			local.addRemoteCandidateCache(prflx, remote)
 			oldPriority := pair.priority()
 
 			srflx, err := NewCandidateServerReflexive(&CandidateServerReflexiveConfig{Network: "udp", Address: "172.17.0.3", Port: 999, Component: 1, RelAddr: "0.0.0.0", RelPort: 0})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			agent.addRemoteCandidate(srflx) // nolint:contextcheck
 
 			set = agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
-			require.Equal(t, CandidateTypeServerReflexive, set[0].Type())
-			require.Equal(t, srflx, set[0])
+			if !assert.Len(t, set, 1) {
+				return
+			}
+			assert.Equal(t, CandidateTypeServerReflexive, set[0].Type())
+			assert.Equal(t, srflx, set[0])
 
 			updatedPair := agent.findPair(local, srflx)
-			require.NotNil(t, updatedPair)
-			require.NotSame(t, pair, updatedPair)
-			require.Equal(t, srflx, updatedPair.Remote)
-			require.Equal(t, oldPriority, updatedPair.priority())
-			require.Equal(t, prflx, pair.Remote)
+			if !assert.NotNil(t, updatedPair) {
+				return
+			}
+			assert.NotSame(t, pair, updatedPair)
+			assert.Equal(t, srflx, updatedPair.Remote)
+			assert.Equal(t, oldPriority, updatedPair.priority())
+			assert.Equal(t, prflx, pair.Remote)
 			cached, ok := local.remoteCandidateCaches.Load(toAddrPortKey(remote))
-			require.True(t, ok)
-			require.Equal(t, srflx, cached)
+			if !assert.True(t, ok) {
+				return
+			}
+			assert.Equal(t, srflx, cached)
 		}))
 	})
 
@@ -846,46 +901,62 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.selector = &controllingSelector{agent: agent, log: agent.log}
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 			agent.localCandidates[local.NetworkType()] = []Candidate{local}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(uint32(99999)), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
 
 			set := agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
+			if !assert.Len(t, set, 1) {
+				return
+			}
 			prflx := set[0]
-			require.Equal(t, CandidateTypePeerReflexive, prflx.Type())
-			require.Len(t, agent.checklist, 1)
+			assert.Equal(t, CandidateTypePeerReflexive, prflx.Type())
+			if !assert.Len(t, agent.checklist, 1) {
+				return
+			}
 			pair := agent.checklist[0]
-			require.Equal(t, prflx, pair.Remote)
+			assert.Equal(t, prflx, pair.Remote)
 
 			local.addRemoteCandidateCache(prflx, remote)
 			oldPriority := pair.priority()
 
 			relay, err := NewCandidateRelay(&CandidateRelayConfig{Network: "udp", Address: "172.17.0.3", Port: 999, Component: 1, RelAddr: "0.0.0.0", RelPort: 0})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			agent.addRemoteCandidate(relay) // nolint:contextcheck
 
 			set = agent.remoteCandidates[local.NetworkType()]
-			require.Len(t, set, 1)
-			require.Equal(t, CandidateTypeRelay, set[0].Type())
-			require.Equal(t, relay, set[0])
+			if !assert.Len(t, set, 1) {
+				return
+			}
+			assert.Equal(t, CandidateTypeRelay, set[0].Type())
+			assert.Equal(t, relay, set[0])
 
 			updatedPair := agent.findPair(local, relay)
-			require.NotNil(t, updatedPair)
-			require.NotSame(t, pair, updatedPair)
-			require.Equal(t, relay, updatedPair.Remote)
-			require.Equal(t, oldPriority, updatedPair.priority())
-			require.Equal(t, prflx, pair.Remote)
+			if !assert.NotNil(t, updatedPair) {
+				return
+			}
+			assert.NotSame(t, pair, updatedPair)
+			assert.Equal(t, relay, updatedPair.Remote)
+			assert.Equal(t, oldPriority, updatedPair.priority())
+			assert.Equal(t, prflx, pair.Remote)
 			cached, ok := local.remoteCandidateCaches.Load(toAddrPortKey(remote))
-			require.True(t, ok)
-			require.Equal(t, relay, cached)
+			if !assert.True(t, ok) {
+				return
+			}
+			assert.Equal(t, relay, cached)
 		}))
 	})
 
@@ -904,18 +975,24 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			agent.prflxAcceptanceMinWait = time.Hour
 
 			local, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			local.conn = &fakenet.MockPacketConn{}
 			agent.localCandidates[local.NetworkType()] = []Candidate{local}
 
 			prflx, err := NewCandidatePeerReflexive(&CandidatePeerReflexiveConfig{Network: "udp", Address: "1.2.3.4", Port: 999, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			agent.addRemoteCandidate(prflx) // nolint:contextcheck
 
 			pair := agent.findPair(local, prflx)
-			require.NotNil(t, pair)
-			require.Equal(t, CandidateTypeHost, pair.Local.Type())
-			require.Equal(t, CandidateTypePeerReflexive, pair.Remote.Type())
+			if !assert.NotNil(t, pair) {
+				return
+			}
+			assert.Equal(t, CandidateTypeHost, pair.Local.Type())
+			assert.Equal(t, CandidateTypePeerReflexive, pair.Remote.Type())
 			pair.state = CandidatePairStateSucceeded
 
 			sel := &controllingSelector{agent: agent, log: agent.log}
@@ -923,28 +1000,34 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 
 			// With prflxAcceptanceMinWait set high, remote prflx candidate should not be nominatable.
 			sel.ContactCandidates()
-			require.Nil(t, sel.nominatedPair)
-			require.False(t, pair.nominated)
+			assert.Nil(t, sel.nominatedPair)
+			assert.False(t, pair.nominated)
 
 			// Trickle the signaled candidate for the same transport address.
 			signaled, err := NewCandidateHost(&CandidateHostConfig{Network: "udp", Address: "1.2.3.4", Port: 999, Component: 1})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			agent.addRemoteCandidate(signaled) // nolint:contextcheck
 
 			updatedPair := agent.findPair(local, signaled)
-			require.NotNil(t, updatedPair)
-			require.NotSame(t, pair, updatedPair)
-			require.Equal(t, CandidateTypePeerReflexive, pair.Remote.Type())
-			require.Equal(t, signaled, updatedPair.Remote)
-			require.Equal(t, CandidateTypeHost, updatedPair.Remote.Type())
+			if !assert.NotNil(t, updatedPair) {
+				return
+			}
+			assert.NotSame(t, pair, updatedPair)
+			assert.Equal(t, CandidateTypePeerReflexive, pair.Remote.Type())
+			assert.Equal(t, signaled, updatedPair.Remote)
+			assert.Equal(t, CandidateTypeHost, updatedPair.Remote.Type())
 
 			// Now the (updated) pair should be nominatable and become nominated.
 			sel.ContactCandidates()
-			require.NotNil(t, sel.nominatedPair)
-			require.Same(t, updatedPair, sel.nominatedPair)
-			require.Equal(t, CandidateTypeHost, sel.nominatedPair.Local.Type())
-			require.Equal(t, CandidateTypeHost, sel.nominatedPair.Remote.Type())
-			require.True(t, updatedPair.nominated)
+			if !assert.NotNil(t, sel.nominatedPair) {
+				return
+			}
+			assert.Same(t, updatedPair, sel.nominatedPair)
+			assert.Equal(t, CandidateTypeHost, sel.nominatedPair.Local.Type())
+			assert.Equal(t, CandidateTypeHost, sel.nominatedPair.Remote.Type())
+			assert.True(t, updatedPair.nominated)
 		}))
 	})
 
@@ -960,11 +1043,13 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 
 			hostConfig := CandidateHostConfig{Network: "tcp", Address: "192.168.0.2", Port: 777, Component: 1}
 			local, err := NewCandidateHost(&hostConfig)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(nil, local, netip.AddrPort{})
-			require.Len(t, agent.remoteCandidates, 0)
+			assert.Len(t, agent.remoteCandidates, 0)
 		}))
 	})
 
@@ -981,17 +1066,21 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			hostConfig := CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1}
 			local, err := NewCandidateHost(&hostConfig)
 			local.conn = &fakenet.MockPacketConn{}
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), UseCandidate(), AttrControlling(agent.tieBreaker), PriorityAttr(local.Priority()), stun.NewShortTermIntegrity(agent.localPwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
-			require.Len(t, agent.remoteCandidates, 1)
-			require.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
+			assert.Len(t, agent.remoteCandidates, 1)
+			assert.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
 		}))
 	})
 
@@ -1011,15 +1100,19 @@ func TestHandlePeerReflexive(t *testing.T) { //nolint:cyclop,maintidx
 			hostConfig := CandidateHostConfig{Network: "udp", Address: "192.168.0.2", Port: 777, Component: 1}
 			local, err := NewCandidateHost(&hostConfig)
 			local.conn = &fakenet.MockPacketConn{}
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			remote := netip.MustParseAddrPort("172.17.0.3:999")
 			msg, err := stun.Build(stun.BindingSuccess, stun.NewTransactionIDSetter(tID), stun.NewShortTermIntegrity(agent.remotePwd), stun.Fingerprint)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
-			require.Len(t, agent.remoteCandidates, 0)
+			assert.Len(t, agent.remoteCandidates, 0)
 		}))
 	})
 }
@@ -1311,14 +1404,16 @@ func TestInboundValidity(t *testing.T) { //nolint:cyclop
 			require.NoError(t, a.Close())
 		}()
 
+		var remoteCount int
 		err = a.loop.Run(a.loop, func(_ context.Context) {
 			a.selector = &controllingSelector{agent: a, log: a.log}
 			// nolint: contextcheck
 			a.handleInbound(buildMsg(stun.ClassRequest, a.localUfrag+":"+a.remoteUfrag, a.localPwd), local, remote)
-			require.Len(t, a.remoteCandidates, 1)
+			remoteCount = len(a.remoteCandidates)
 		})
 
 		require.NoError(t, err)
+		require.Equal(t, 1, remoteCount)
 	})
 
 	t.Run("Valid bind without fingerprint", func(t *testing.T) {
@@ -1328,15 +1423,23 @@ func TestInboundValidity(t *testing.T) { //nolint:cyclop
 			require.NoError(t, agent.Close())
 		}()
 
+		var buildErr error
+		var remoteCount int
 		require.NoError(t, agent.loop.Run(agent.loop, func(_ context.Context) {
 			agent.selector = &controllingSelector{agent: agent, log: agent.log}
 			msg, err := stun.Build(stun.BindingRequest, stun.TransactionID, stun.NewUsername(agent.localUfrag+":"+agent.remoteUfrag), stun.NewShortTermIntegrity(agent.localPwd))
-			require.NoError(t, err)
+			if err != nil {
+				buildErr = err
+
+				return
+			}
 
 			// nolint: contextcheck
 			agent.handleInbound(msg, local, remote)
-			require.Len(t, agent.remoteCandidates, 1)
+			remoteCount = len(agent.remoteCandidates)
 		}))
+		require.NoError(t, buildErr)
+		require.Equal(t, 1, remoteCount)
 	})
 
 	t.Run("Success with invalid TransactionID", func(t *testing.T) {
@@ -2018,11 +2121,14 @@ func TestConnectionStateFailedDeleteAllCandidates(t *testing.T) {
 	<-isFailed
 
 	done := make(chan struct{})
+	var remoteCount, localCount int
 	require.NoError(t, aAgent.loop.Run(context.Background(), func(context.Context) {
-		require.Equal(t, len(aAgent.remoteCandidates), 0)
-		require.Equal(t, len(aAgent.localCandidates), 0)
+		remoteCount = len(aAgent.remoteCandidates)
+		localCount = len(aAgent.localCandidates)
 		close(done)
 	}))
+	require.Zero(t, remoteCount)
+	require.Zero(t, localCount)
 	<-done
 }
 
@@ -3613,11 +3719,14 @@ func TestAddRemoteCandidateIndependentFromTURNTransportSelection(t *testing.T) {
 		cand, err := NewCandidateRelay(&CandidateRelayConfig{Network: udp, Address: "198.51.100.2", Port: 5000, Component: ComponentRTP, RelAddr: "192.0.2.10", RelPort: 4000})
 		require.NoError(t, err)
 
+		var accepted bool
+		var stored []Candidate
 		require.NoError(t, agent.loop.Run(agent.loop, func(_ context.Context) {
-			accepted := agent.addRemoteCandidate(cand) // nolint:contextcheck
-			require.True(t, accepted)
-			require.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
+			accepted = agent.addRemoteCandidate(cand) // nolint:contextcheck
+			stored = agent.remoteCandidates[NetworkTypeUDP4]
 		}))
+		require.True(t, accepted)
+		require.Len(t, stored, 1)
 	})
 
 	// nolint:dupl
@@ -3631,11 +3740,14 @@ func TestAddRemoteCandidateIndependentFromTURNTransportSelection(t *testing.T) {
 		cand, err := UnmarshalCandidate("1052353102 1 udp 1675624447 198.51.100.20 5002 typ host")
 		require.NoError(t, err)
 
+		var accepted bool
+		var stored []Candidate
 		require.NoError(t, agent.loop.Run(agent.loop, func(_ context.Context) {
-			accepted := agent.addRemoteCandidate(cand) // nolint:contextcheck
-			require.True(t, accepted)
-			require.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
+			accepted = agent.addRemoteCandidate(cand) // nolint:contextcheck
+			stored = agent.remoteCandidates[NetworkTypeUDP4]
 		}))
+		require.True(t, accepted)
+		require.Len(t, stored, 1)
 	})
 
 	// nolint:dupl
@@ -3649,11 +3761,14 @@ func TestAddRemoteCandidateIndependentFromTURNTransportSelection(t *testing.T) {
 		cand, err := UnmarshalCandidate("1052353102 1 udp 1675624447 198.51.100.21 5003 typ srflx raddr 192.0.2.21 rport 4003")
 		require.NoError(t, err)
 
+		var accepted bool
+		var stored []Candidate
 		require.NoError(t, agent.loop.Run(agent.loop, func(_ context.Context) {
-			accepted := agent.addRemoteCandidate(cand) // nolint:contextcheck
-			require.True(t, accepted)
-			require.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
+			accepted = agent.addRemoteCandidate(cand) // nolint:contextcheck
+			stored = agent.remoteCandidates[NetworkTypeUDP4]
 		}))
+		require.True(t, accepted)
+		require.Len(t, stored, 1)
 	})
 
 	t.Run("stores UDP relay candidate regardless of TURN URL transport", func(t *testing.T) {
@@ -3666,11 +3781,14 @@ func TestAddRemoteCandidateIndependentFromTURNTransportSelection(t *testing.T) {
 		cand, err := NewCandidateRelay(&CandidateRelayConfig{Network: udp, Address: "198.51.100.3", Port: 5001, Component: ComponentRTP, RelAddr: "192.0.2.11", RelPort: 4001})
 		require.NoError(t, err)
 
+		var accepted bool
+		var stored []Candidate
 		require.NoError(t, agent.loop.Run(agent.loop, func(_ context.Context) {
-			accepted := agent.addRemoteCandidate(cand) // nolint:contextcheck
-			require.True(t, accepted)
-			require.Len(t, agent.remoteCandidates[NetworkTypeUDP4], 1)
+			accepted = agent.addRemoteCandidate(cand) // nolint:contextcheck
+			stored = agent.remoteCandidates[NetworkTypeUDP4]
 		}))
+		require.True(t, accepted)
+		require.Len(t, stored, 1)
 	})
 }
 
